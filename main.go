@@ -220,7 +220,7 @@ func syslogInit() {
 
 	switch conf.SyslogServer.Format {
 	case "none":
-		// none formater
+		// no formater
 	case "RFC3164":
 		formater := syslog.Formatter(syslog.RFC3164Formatter)
 		syslogHandler.SetFormatter(formater)
