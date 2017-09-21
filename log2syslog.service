@@ -1,0 +1,10 @@
+[Unit]
+Description=WAF-FLE Client, modSecurity log feeder
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/wafflec -f /etc/wafflec.conf
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

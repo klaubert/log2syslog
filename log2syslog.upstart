@@ -1,0 +1,15 @@
+# wafflec - WAF-FLE Client. Modsecurity log feeder
+#
+# wafflec read modsecurity index and event files and sent it to WAF-FLE over http.
+
+description     "WAF-FLE Client, modSecurity log feeder"
+author          "Klaubert Herr <klaubert@gmail.com>"
+
+start on runlevel [2345]
+stop on runlevel [!2345]
+
+respawn
+respawn limit 10 5
+
+#setuid myuser
+exec /usr/local/sbin/wafflec -f /etc/wafflec.conf
