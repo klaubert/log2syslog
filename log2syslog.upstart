@@ -1,8 +1,9 @@
-# wafflec - WAF-FLE Client. Modsecurity log feeder
+# log2syslog - generic log file feeder to a syslog server
 #
-# wafflec read modsecurity index and event files and sent it to WAF-FLE over http.
+# log2syslog reads one or more log files and send each log line to a remote
+# syslog server, using UDP or TCP protocol.
 
-description     "WAF-FLE Client, modSecurity log feeder"
+description     "log2syslog, a generic log feeder"
 author          "Klaubert Herr <klaubert@gmail.com>"
 
 start on runlevel [2345]
@@ -12,4 +13,4 @@ respawn
 respawn limit 10 5
 
 #setuid myuser
-exec /usr/local/sbin/wafflec -f /etc/wafflec.conf
+exec /usr/local/sbin/log2syslog -f /etc/log2syslog.conf

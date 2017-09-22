@@ -1,9 +1,9 @@
 [Unit]
-Description=WAF-FLE Client, modSecurity log feeder
+Description=log2syslog, a generic log feeder
 
 [Service]
 Type=simple
-ExecStart=/usr/local/sbin/wafflec -f /etc/wafflec.conf
+ExecStart=/usr/local/sbin/log2syslog -f /etc/log2syslog.conf
 Restart=always
 
 [Install]
