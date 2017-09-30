@@ -159,32 +159,36 @@ func configInit(configFile string) error {
 	}
 	_, err = toml.DecodeFile(configFile, &conf)
 	if err != nil {
-		fmt.Printf(" Check config file %s configuration and syntaxe, something wrong there!", configFile)
+		fmt.Printf(" Check config file %s configuration and syntaxe, something wrong there!\n", configFile)
+		fmt.Printf(" Error: %s\n", err)
 		errHappen = true
 	}
 
 	// Validate config file
 	if !govalidator.StringLength(conf.SyslogServer.Host, "1", "120") || !govalidator.IsHost(conf.SyslogServer.Host) {
-		fmt.Printf(" Syslog Host must be present, it must be an IP Address or hostname (%s).\n", conf.SyslogServer.Host)
+		fmt.Printf(" Config Error: Syslog Host must be present, it must be an IP Address or hostname (%s).\n", conf.SyslogServer.Host)
 		errHappen = true
 	}
 	if !govalidator.InRange(float64(conf.SyslogServer.Port), 1, 65535) {
-		fmt.Printf(" Syslog Port must be an integer from 1 to 65535 (%d).\n", conf.SyslogServer.Port)
+		fmt.Printf(" Config Error: Syslog Port must be an integer from 1 to 65535 (%d).\n", conf.SyslogServer.Port)
 		errHappen = true
 	}
 
 	if regexp.MustCompile(`^(udp|tcp)$`).MatchString(conf.SyslogServer.Protocol) == false {
-		fmt.Printf(" Protocol must be udp or tcp (%s).\n", conf.SyslogServer.Protocol)
+		fmt.Printf(" Config Error: Protocol must be udp or tcp (%s).\n", conf.SyslogServer.Protocol)
 		errHappen = true
 	}
 
-	// _, err = os.Stat(conf.Logsource.logFile)
-	// if err != nil {
-	// 	fmt.Printf(" Index file %s does not exist, check index_file in %s\n", conf.Logsource.logFile, configFile)
-	// 	errHappen = true
-	// }
+	for _, v := range conf.Logsources.LogFiles {
+		_, err = os.Stat(v)
+		if err != nil {
+			fmt.Printf(" Config Error: Log file %s does not exist, check it and try again.\n", v)
+			errHappen = true
+		}
+	}
+
 	if conf.General.LogType != file && conf.General.LogType != "syslog" && conf.General.LogType != "stdout" {
-		fmt.Printf(" Log Type (log_type) must be either: 'file', 'syslog' or 'stdout'. \n The stdout is the default and will print the log on standard output - your screen,\n check config file (%s).\n", configFile)
+		fmt.Printf(" Config Error: Log Type (log_type) must be either: 'file', 'syslog' or 'stdout'. \n The stdout is the default and will print the log on standard output - your screen,\n check config file (%s).\n", configFile)
 		errHappen = true
 	}
 
@@ -193,14 +197,14 @@ func configInit(configFile string) error {
 		if err != nil {
 			err := ioutil.WriteFile(conf.General.LogFile, []byte("Start"), 0640)
 			if err != nil {
-				fmt.Printf(" Impossible to write the log file %s, check file permission.\n", conf.General.LogFile)
+				fmt.Printf(" Config Error: Impossible to write the log file %s, check file permission.\n", conf.General.LogFile)
 				errHappen = true
 			}
 		}
 	}
 
 	if errHappen {
-		return errors.New(" configuration errors, correct config file and try again")
+		return errors.New("Configuration errors, correct config file and try again")
 	}
 	return nil
 }
