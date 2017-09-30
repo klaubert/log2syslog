@@ -17,6 +17,7 @@ import (
 	syslog "github.com/RackSec/srslog"
 	"github.com/asaskevich/govalidator"
 	"github.com/hpcloud/tail"
+	"github.com/juju/ratelimit"
 )
 
 //VERSION of log2syslog
@@ -49,6 +50,7 @@ type logSources struct {
 }
 
 type general struct {
+	Rate           int    `toml:"rate_limit"`
 	LogType        string `toml:"log_type"`
 	LogFile        string `toml:"log_file"`
 	MaxConcurrency int    `toml:"max_concurrency"`
@@ -139,11 +141,12 @@ func logRead(wg *sync.WaitGroup, logFile string, logLineChannel chan<- string, s
 	}
 }
 
-func logPump(wg *sync.WaitGroup, logLineChannel <-chan string, st chan<- Counters) {
+func logPump(wg *sync.WaitGroup, logLineChannel <-chan string, st chan<- Counters, rate int) {
 	defer wg.Done()
 	var c Counters
+	mps := ratelimit.NewBucketWithRate(float64(rate), 1)
 	for v := range logLineChannel {
-		//send log to remote syslog
+		mps.Wait(1)
 		fmt.Fprint(syslogHandler, v)
 		c.Sent = 1
 		st <- c
@@ -169,8 +172,14 @@ func configInit(configFile string) error {
 		fmt.Printf(" Config Error: Syslog Host must be present, it must be an IP Address or hostname (%s).\n", conf.SyslogServer.Host)
 		errHappen = true
 	}
+
 	if !govalidator.InRange(float64(conf.SyslogServer.Port), 1, 65535) {
 		fmt.Printf(" Config Error: Syslog Port must be an integer from 1 to 65535 (%d).\n", conf.SyslogServer.Port)
+		errHappen = true
+	}
+
+	if !govalidator.InRange(float64(conf.General.Rate), 1, 1000000) {
+		fmt.Printf(" Config Error: Rate limit must be an integer from 1 to 1000000 (%d).\n", conf.General.Rate)
 		errHappen = true
 	}
 
@@ -297,7 +306,7 @@ func main() {
 
 	// start log pump
 	wg.Add(1)
-	go logPump(&wg, logLineChannel, Stats)
+	go logPump(&wg, logLineChannel, Stats, conf.General.Rate)
 
 	// wait goroutines to finish
 	wg.Wait()
