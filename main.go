@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
 	//"log/syslog"
 	"github.com/BurntSushi/toml"
 	syslog "github.com/RackSec/srslog"
@@ -50,10 +51,11 @@ type logSources struct {
 }
 
 type general struct {
-	Rate           int    `toml:"rate_limit"`
-	LogType        string `toml:"log_type"`
-	LogFile        string `toml:"log_file"`
-	MaxConcurrency int    `toml:"max_concurrency"`
+	Rate                int    `toml:"rate_limit"`
+	LogType             string `toml:"log_type"`
+	LogFile             string `toml:"log_file"`
+	MaxConcurrency      int    `toml:"max_concurrency"`
+	ReplaceControlChars bool   `toml:"replace_control_characters"`
 }
 
 // Counters hold the stats structure used to increment counters
@@ -115,6 +117,27 @@ func PrintStats() {
 	}
 }
 
+// stripCtlFromBytes convert
+func replaceCtlandExtCharbySpace(str string) string {
+	b := make([]byte, len(str))
+	// fmt.Println("\nLen inicial: " + strconv.Itoa(len(str)))
+	var bl int
+	for i := 0; i < len(str); i++ {
+		c := str[i]
+		// fmt.Printf("Char: %d, ASCII: %s \n", c, string(c))
+		if c >= 32 && c <= 127 {
+			b[bl] = c
+			bl++
+		} else {
+			b[bl] = 32
+			bl++
+		}
+
+	}
+	// fmt.Println("\nLen Final: " + strconv.Itoa(len(b)))
+	return string(b[:bl])
+}
+
 func logRead(wg *sync.WaitGroup, logFile string, logLineChannel chan<- string, st chan<- Counters) {
 	defer wg.Done()
 	var seek tail.SeekInfo
@@ -134,8 +157,14 @@ func logRead(wg *sync.WaitGroup, logFile string, logLineChannel chan<- string, s
 		log.Printf("Error on follow de index file: %s.\n", err)
 	}
 	var c Counters
+
 	for line := range t.Lines {
-		logLineChannel <- line.Text
+		if conf.General.ReplaceControlChars {
+			logLineChannel <- replaceCtlandExtCharbySpace(line.Text)
+		} else {
+			logLineChannel <- line.Text
+		}
+
 		c.Read = 1
 		st <- c
 	}
@@ -145,6 +174,7 @@ func logPump(wg *sync.WaitGroup, logLineChannel <-chan string, st chan<- Counter
 	defer wg.Done()
 	var c Counters
 	mps := ratelimit.NewBucketWithRate(float64(rate), 1)
+
 	for v := range logLineChannel {
 		mps.Wait(1)
 		fmt.Fprint(syslogHandler, v)
@@ -173,12 +203,12 @@ func configInit(configFile string) error {
 		errHappen = true
 	}
 
-	if !govalidator.InRange(float64(conf.SyslogServer.Port), 1, 65535) {
+	if !govalidator.InRangeInt(conf.SyslogServer.Port, 1, 65535) {
 		fmt.Printf(" Config Error: Syslog Port must be an integer from 1 to 65535 (%d).\n", conf.SyslogServer.Port)
 		errHappen = true
 	}
 
-	if !govalidator.InRange(float64(conf.General.Rate), 1, 1000000) {
+	if !govalidator.InRangeInt(conf.General.Rate, 1, 1000000) {
 		fmt.Printf(" Config Error: Rate limit must be an integer from 1 to 1000000 (%d).\n", conf.General.Rate)
 		errHappen = true
 	}
@@ -234,6 +264,7 @@ func syslogInit() {
 	switch conf.SyslogServer.Format {
 	case "none":
 		// no formater
+		log.SetOutput(syslogHandler)
 	case "RFC3164":
 		formater := syslog.Formatter(syslog.RFC3164Formatter)
 		syslogHandler.SetFormatter(formater)
@@ -250,7 +281,7 @@ func syslogInit() {
 
 	log.SetFlags(0)
 
-	log.Println("Remote log initialized")
+	//log.Println("Remote log initialized")
 }
 
 func localLogInit() {
